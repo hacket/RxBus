@@ -10,21 +10,16 @@ import androidx.annotation.NonNull;
 import androidx.lifecycle.LifecycleOwner;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Observable;
-import io.reactivex.rxjava3.core.ObservableEmitter;
-import io.reactivex.rxjava3.core.ObservableOnSubscribe;
 import io.reactivex.rxjava3.core.Scheduler;
 import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.functions.Action;
-import io.reactivex.rxjava3.functions.Consumer;
-import io.reactivex.rxjava3.functions.Function;
-import io.reactivex.rxjava3.functions.Predicate;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 
 public final class RxBus<V> {
 
-    private Relay<BusMessage<V>> mNormalRelay;
-    private Relay<BusMessage<V>> mStickyRelay;
-    private ConcurrentMap<String, BusMessage<V>> mStickyEventMap = new ConcurrentHashMap<>();
+    private final Relay<BusMessage<V>> mNormalRelay;
+    private final Relay<BusMessage<V>> mStickyRelay;
+
+    private final ConcurrentMap<String, BusMessage<V>> mStickyEventMap = new ConcurrentHashMap<>();
 
     private static final RxBus INSTANCE = new RxBus();
 
@@ -68,100 +63,104 @@ public final class RxBus<V> {
         mStickyRelay.accept(message);
     }
 
-    public void receive(@NonNull LifecycleOwner lifecycleOwner, @NonNull String tag, @NonNull RxBusReceiver busReceiver) {
-        receive(lifecycleOwner, tag, busReceiver, AndroidSchedulers.mainThread());
+    public void receive(
+            @NonNull LifecycleOwner lifecycleOwner,
+            @NonNull String tag,
+            @NonNull Action1<V> action1) {
+        receive(lifecycleOwner, tag, action1, AndroidSchedulers.mainThread());
     }
 
-    public void receive(@NonNull LifecycleOwner lifecycleOwner, @NonNull String tag, @NonNull RxBusReceiver busReceiver, @NonNull Scheduler scheduler) {
+    public void receive(
+            @NonNull LifecycleOwner lifecycleOwner,
+            @NonNull String tag,
+            @NonNull Action1<V> action1,
+            @NonNull Scheduler scheduler) {
         Utils.requireNonNull(lifecycleOwner, "lifecycleOwner is null");
         Utils.requireNonNull(scheduler, "scheduler is null");
         Disposable disposable = toObservable(mNormalRelay, tag)
                 .subscribeOn(Schedulers.io())
                 .unsubscribeOn(Schedulers.io())
                 .observeOn(scheduler)
-                .subscribeWith(busReceiver);
+                .subscribeWith(new RxBusReceiver<V>(){
+                    @Override
+                    public void receive(@NonNull V data) {
+                        action1.onReceive(data);
+                    }
+                });
         lifecycleOwner.getLifecycle()
                 .addObserver(new BusLifeObserver(tag, disposable));
     }
 
-    private Observable<V> toObservableSticky(@NonNull Relay<BusMessage<V>> relay, @NonNull final String tag) {
+    private Observable<V> toObservableSticky(
+            @NonNull Relay<BusMessage<V>> relay,
+            @NonNull final String tag) {
         Observable<V> observable = toObservable(relay, tag);
         final BusMessage<V> busMessage = mStickyEventMap.get(tag);
         if (busMessage != null) {
             return observable
-                    .mergeWith(Observable.create(new ObservableOnSubscribe<V>() {
-                        @Override
-                        public void subscribe(ObservableEmitter<V> emitter) throws Exception {
-                            if (!emitter.isDisposed()) {
-                                emitter.onNext(busMessage.getValue());
-                                emitter.onComplete();
-                            }
+                    .mergeWith(Observable.create(emitter -> {
+                        if (!emitter.isDisposed()) {
+                            emitter.onNext(busMessage.getValue());
+                            emitter.onComplete();
                         }
                     }))
-                    .doOnNext(new Consumer<V>() {
-                        @Override
-                        public void accept(V v) throws Exception {
-                            removeStickyEvent(tag);
-                        }
-                    });
+                    .doOnNext(v -> removeStickyEvent(tag));
         } else {
             return observable;
         }
     }
 
-    public void receiveSticky(@NonNull LifecycleOwner lifecycleOwner, @NonNull String tag, @NonNull RxBusReceiver busReceiver) {
-        receiveSticky(lifecycleOwner, tag, busReceiver, AndroidSchedulers.mainThread());
+    public void receiveSticky(
+            @NonNull LifecycleOwner lifecycleOwner,
+            @NonNull String tag,
+            @NonNull Action1<V> action1) {
+        receiveSticky(lifecycleOwner, tag, action1, AndroidSchedulers.mainThread());
     }
 
-    public void receiveSticky(@NonNull LifecycleOwner lifecycleOwner, @NonNull String tag, @NonNull RxBusReceiver busReceiver, @NonNull Scheduler scheduler) {
+    public void receiveSticky(
+            @NonNull LifecycleOwner lifecycleOwner,
+            @NonNull String tag,
+            @NonNull Action1<V> action1,
+            @NonNull Scheduler scheduler) {
         Utils.requireNonNull(lifecycleOwner, "lifecycleOwner is null");
         Utils.requireNonNull(scheduler, "scheduler is null");
         Disposable disposable = toObservableSticky(mStickyRelay, tag)
                 .subscribeOn(Schedulers.io())
                 .unsubscribeOn(Schedulers.io())
                 .observeOn(scheduler)
-                .subscribeWith(busReceiver);
+                .subscribeWith(new RxBusReceiver<V>(){
+                    @Override
+                    public void receive(@NonNull V data) {
+                        action1.onReceive(data);
+                    }
+                });
         lifecycleOwner.getLifecycle()
                 .addObserver(new BusLifeObserver(tag, disposable));
     }
 
-    private Observable<V> toObservable(@NonNull Relay<BusMessage<V>> relay, final @NonNull String tag) {
+    private Observable<V> toObservable(
+            @NonNull Relay<BusMessage<V>> relay,
+            final @NonNull String tag) {
         return relay
-                .filter(new Predicate<BusMessage<V>>() {
-                    @Override
-                    public boolean test(BusMessage<V> message) throws Exception {
-                        boolean checkTag = message.checkTag(tag);
-                        if (!checkTag) {
-                            Utils.logw("filter check tag: " + tag, "RxBus check tag failed. message tag: " + message.getTag() + "，receive tag: " + tag);
-                            return false;
-                        }
-                        boolean checkValue = message.checkValue();
-                        if (!checkValue) {
-                            Utils.logw("filter check value: " + tag, "RxBus check value failed. : " + message.getTag() + ", value: " + message.getValue());
-                            return false;
-                        }
-                        return true;
+                .filter(message -> {
+                    boolean checkTag = message.checkTag(tag);
+                    if (!checkTag) {
+                        Utils.logw("filter check tag: " + tag, "RxBus check tag failed. message tag: " + message.getTag() + "，receive tag: " + tag);
+                        return false;
                     }
+                    boolean checkValue = message.checkValue();
+                    if (!checkValue) {
+                        Utils.logw("filter check value: " + tag, "RxBus check value failed. : " + message.getTag() + ", value: " + message.getValue());
+                        return false;
+                    }
+                    return true;
                 })
-                .map(new Function<BusMessage<V>, V>() {
-                    @Override
-                    public V apply(BusMessage<V> message) throws Exception {
-                        Utils.logi("map:" + tag, "RxBus map value : " + message.getValue());
-                        return message.getValue();
-                    }
+                .map(message -> {
+                    Utils.logi("map:" + tag, "RxBus map value : " + message.getValue());
+                    return message.getValue();
                 })
-                .doOnSubscribe(new Consumer<Disposable>() {
-                    @Override
-                    public void accept(Disposable disposable) throws Exception {
-                        Utils.logi("doOnSubscribe:" + tag, "RxBus Subscribe: " + disposable.isDisposed());
-                    }
-                })
-                .doOnDispose(new Action() {
-                    @Override
-                    public void run() throws Exception {
-                        Utils.logw("doOnDispose:" + tag, "The BusMessage Dispose");
-                    }
-                });
+                .doOnSubscribe(disposable -> Utils.logi("doOnSubscribe:" + tag, "RxBus Subscribe: " + disposable.isDisposed()))
+                .doOnDispose(() -> Utils.logw("doOnDispose:" + tag, "The BusMessage Dispose"));
     }
 
     public void removeAllStickyEvents() {

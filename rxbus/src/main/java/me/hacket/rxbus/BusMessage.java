@@ -14,7 +14,6 @@ final class BusMessage<V> {
     public static <V> BusMessage<V> of(@NonNull String type, @NonNull V msg) {
         return new BusMessage<>(type, msg);
     }
-
     public static BusMessage of(@NonNull String type) {
         return new BusMessage<>(type, EMPTY);
     }
