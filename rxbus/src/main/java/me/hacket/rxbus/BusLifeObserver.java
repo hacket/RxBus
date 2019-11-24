@@ -21,6 +21,25 @@ class BusLifeObserver implements DefaultLifecycleObserver {
     }
 
     @Override
+    public void onStart(@NonNull LifecycleOwner owner) {
+
+    }
+
+    @Override
+    public void onResume(@NonNull LifecycleOwner owner) {
+
+    }
+
+    @Override
+    public void onPause(@NonNull LifecycleOwner owner) {
+    }
+
+    @Override
+    public void onStop(@NonNull LifecycleOwner owner) {
+
+    }
+
+    @Override
     public void onDestroy(@NonNull LifecycleOwner owner) {
         if (disposable != null && !disposable.isDisposed()) {
             disposable.dispose();

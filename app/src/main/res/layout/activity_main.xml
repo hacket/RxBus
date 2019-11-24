@@ -12,4 +12,16 @@
         android:layout_height="wrap_content"
         android:text="post no value" />
 
+    <Button
+        android:id="@+id/btn_post_value"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="post value" />
+
+    <Button
+        android:id="@+id/btn_receive_sticky"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="receive value sticky" />
+
 </LinearLayout>

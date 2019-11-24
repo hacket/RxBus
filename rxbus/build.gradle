@@ -4,7 +4,6 @@ android {
     compileSdkVersion 29
 
     defaultConfig {
-        applicationId "me.hacket.rxbus.app"
         minSdkVersion 19
         targetSdkVersion 29
 
