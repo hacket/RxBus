@@ -36,26 +36,25 @@ class MainActivity : AppCompatActivity() {
 
         RxBus.getDefault<String>().receive(
             this,
-            "tag2",
-            object : Action1<String> {
-                override fun onReceive(data: String) {
-                    Log.d(TAG, "receive: tag=tag2, data=$data (${Thread.currentThread().name})")
-                }
-            }
-        )
+            "tag2"
+        ) { data -> Log.d(TAG, "receive: tag=tag2, data=$data (${Thread.currentThread().name})") }
+
         RxBus.getDefault<String>().receive(
             this,
             "tag2",
-            object : Action1<String> {
-                override fun onReceive(data: String) {
-                    Log.d(TAG, "receive: tag=tag2, data=$data (${Thread.currentThread().name})")
-                }
+            { data ->
+                Log.d(
+                    TAG,
+                    "receive: tag=tag2, data=$data (${Thread.currentThread().name})"
+                )
             },
             Schedulers.io()
         )
+        RxBus.getDefault<String>().re
+
 
         btn_post_no_value.setOnClickListener {
-            RxBus.getDefault<String>().post("tag1")
+            RxBus.getDefault<Any>().post("tag1")
         }
         btn_post_value.setOnClickListener {
             RxBus.getDefault<String>().post("tag2", "a test value")
