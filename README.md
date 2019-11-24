@@ -6,7 +6,7 @@ RxBus, This is an event bus designed to allowing your application to communicate
 - event bus by tag
 - sticky event 
 - generic support
-- lifecycle support
+- lifecycle support, auto dispose
 - subscribe on other thread
 
 ## Usage
@@ -76,6 +76,14 @@ RxBus.getDefault<Int>().receiveSticky(this, "tag10") {
 
 // remove sticky event by tag
 RxBus.getDefault<Int>().removeStickyEvent("tag10")
+```
+
+### lifecycle support, auto dispose
+```kotlin
+// Fragment、AppCompatActivity or other LifecycleOwner
+RxBus.getDefault<Int>().receive(lifecycleOwner,...)
+
+RxBus.getDefault<Int>().receiveSticky(lifecycleOwner,...)
 ```
 
 ## License
